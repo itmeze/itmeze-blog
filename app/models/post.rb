@@ -8,14 +8,22 @@ class Post < ActiveRecord::Base
 
   before_validation       :generate_slug
   before_validation       :set_dates
+  #before_validation       :generate_tags
   before_save             :apply_filter
 
   validates_presence_of   :title, :slug, :body
 
   validate                :validate_published_at_natural
+  validate                :validate_tags_list_keywords
 
   def validate_published_at_natural
     errors.add("published_at_natural", "Unable to parse time") unless published?
+  end
+
+  def validate_tags_list_keywords
+    unless @tag_list.nil? || !@tag_list.any? { |a| ['archives', 'admin'].include?(a) }
+      errors.add("tagslist", "Forbidden keyword within tags")
+    end
   end
 
   attr_accessor :minor_edit
@@ -52,7 +60,7 @@ class Post < ActiveRecord::Base
       tag = options.delete(:tag)
       options = {
         :order      => 'posts.published_at DESC',
-        :conditions => ['published_at < ?', Time.zone.now],
+        :conditions => ['published_at < ? AND active = ?', Time.zone.now, true],
         :limit      => DEFAULT_LIMIT
       }.merge(options)
       if tag
@@ -80,7 +88,7 @@ class Post < ActiveRecord::Base
       posts = find(
         :all,
         :order      => 'posts.published_at DESC',
-        :conditions => ['published_at < ?', Time.now]
+        :conditions => ['published_at < ? AND active = ?', Time.now, true]
       )
       month = Struct.new(:date, :posts)
       posts.group_by(&:month).inject([]) {|a, v| a << month.new(v[0], v[1])}
@@ -114,6 +122,12 @@ class Post < ActiveRecord::Base
   def generate_slug
     self.slug = self.title.dup if self.slug.blank?
     self.slug.slugorize!
+  end
+
+  def generate_tags
+    TagList.from(self.tag_list).each do |tag|
+        self.tags << Tag.new(:name => tag)
+    end
   end
 
   # TODO: Contribute this back to acts_as_taggable_on_steroids plugin

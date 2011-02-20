@@ -14,12 +14,12 @@ describe Post, "integration" do
 end
 
 describe Post, ".find_recent" do
-  it 'finds the most recent posts that were published before now' do
+  it 'finds the most recent posts that were published before now and active' do
     now = Time.now
     Time.stub!(:now).and_return(now)
     Post.should_receive(:find).with(:all, {
       :order      => 'posts.published_at DESC',
-      :conditions => ['published_at < ?', now],
+      :conditions => ['published_at < ? AND active = ?', now, true],
       :limit      => Post::DEFAULT_LIMIT
     })
     Post.find_recent
@@ -30,7 +30,7 @@ describe Post, ".find_recent" do
     Time.stub!(:now).and_return(now)
     Post.should_receive(:find_tagged_with).with('code', {
       :order      => 'posts.published_at DESC',
-      :conditions => ['published_at < ?', now],
+      :conditions => ['published_at < ? AND active = ?', now, true],
       :limit      => Post::DEFAULT_LIMIT
     })
     Post.find_recent(:tag => 'code')
@@ -42,7 +42,7 @@ describe Post, ".find_recent" do
     posts = [1, 1, 2].collect {|month| mock_model(Post, :month => month) }
     Post.should_receive(:find).with(:all, {
       :order      => 'posts.published_at DESC',
-      :conditions => ['published_at < ?', now]
+      :conditions => ['published_at < ? AND active = ?', now, true]
     }).and_return(posts)
     months = Post.find_all_grouped_by_month.collect {|month| [month.date, month.posts]}
     months.should == [[1, [posts[0], posts[1]]], [2, [posts[2]]]]
@@ -164,6 +164,13 @@ describe Post, 'before validation' do
     post.edited_at.should_not be_blank
     post.published_at.should_not be_blank
   end
+
+  it 'generates #tag_list' do
+    post = Post.new(:title => "My Post", :body => "body", :tag_list => 'test, chomik')
+    post.valid?
+    post.save
+    post.tags.length.should == 2
+  end
 end
 
 describe Post, '#denormalize_comments_count!' do
@@ -194,6 +201,14 @@ describe Post, 'validations' do
     Post.new(valid_post_attributes.merge(:title => '')).should_not be_valid
   end
 
+  it 'is invalid with forbidden keywords in taglist' do
+    Post.new(valid_post_attributes.merge(:tag_list => 'archives')).should_not be_valid
+    Post.new(valid_post_attributes.merge(:tag_list => 'admin')).should_not be_valid
+    Post.new(valid_post_attributes.merge(:tag_list => 'admin, archives')).should_not be_valid
+  end
+
+
+
   it 'is invalid with no body' do
     Post.new(valid_post_attributes.merge(:body => '')).should_not be_valid
   end
@@ -201,6 +216,8 @@ describe Post, 'validations' do
   it 'is invalid with bogus published_at_natural' do
     Post.new(valid_post_attributes.merge(:published_at_natural => 'bogus')).should_not be_valid
   end
+
+
 end
 
 describe Post, 'being destroyed' do

@@ -23,7 +23,7 @@ class Admin::PagesController < Admin::BaseController
       end
     else
       respond_to do |format|
-        format.html { render :action => 'new',         :status => :unprocessable_entity }
+        format.html { render :action => 'new', :status => :unprocessable_entity }
       end
     end
   end
